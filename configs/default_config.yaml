@@ -1,0 +1,98 @@
+# Default Configuration for RLHF Phi-3 Pipeline
+# This file contains the default hyperparameters and settings
+
+# Model Configuration
+model:
+  name: "microsoft/Phi-3-mini-4k-instruct"
+  max_length: 2048
+  device: "auto"  # auto-detect GPU/CPU
+
+# LoRA Configuration
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.1
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Training Configuration
+training:
+  # SFT Stage
+  sft:
+    epochs: 3
+    learning_rate: 2e-4
+    batch_size: 4
+    gradient_accumulation_steps: 4
+    warmup_steps: 100
+    max_steps: 1000
+    
+  # Reward Model Stage  
+  reward:
+    epochs: 1
+    learning_rate: 1e-4
+    batch_size: 2
+    gradient_accumulation_steps: 8
+    warmup_steps: 50
+    max_steps: 500
+    
+  # PPO Stage
+  ppo:
+    learning_rate: 1e-5
+    batch_size: 1
+    mini_batch_size: 1
+    gradient_accumulation_steps: 16
+    ppo_epochs: 4
+    max_steps: 1000
+
+# Optimization Settings
+optimization:
+  optimizer_type: "adamw_torch"
+  scheduler_type: "cosine"
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: true
+  gradient_checkpointing: true
+
+# Paths and Storage
+paths:
+  base_output_dir: "/content/drive/MyDrive/rlhf-phi3"
+  cache_dir: "/content/cache"
+  logs_dir: "/content/logs"
+
+# Experiment Tracking
+wandb:
+  project: "rlhf-phi3-pipeline"
+  entity: null  # Will use default entity
+  tags: ["phi3", "rlhf", "colab"]
+
+# Datasets
+datasets:
+  sft:
+    name: "HuggingFaceH4/ultrachat_200k"
+    split: "train_sft"
+    max_samples: 10000
+    
+  preference:
+    name: "HuggingFaceH4/ultrafeedback_binarized"
+    split: "train_prefs"
+    max_samples: 5000
+
+# Evaluation
+evaluation:
+  mt_bench:
+    num_samples: 100
+    temperature: 0.7
+    max_new_tokens: 512
+    
+# Checkpointing
+checkpointing:
+  save_steps: 100
+  save_total_limit: 3
+  resume_from_checkpoint: null
+
+# Logging
+logging:
+  level: "INFO"
+  log_steps: 10
+  eval_steps: 200

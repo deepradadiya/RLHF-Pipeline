@@ -1,0 +1,172 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rlhf-phi3-pipeline"
+version = "0.1.0"
+description = "A production-grade RLHF pipeline for Microsoft Phi-3 Mini"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "RLHF Pipeline Team", email = "contact@rlhf-pipeline.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "transformers>=4.36.0",
+    "torch>=2.0.0",
+    "peft>=0.7.0",
+    "trl>=0.7.0",
+    "datasets>=2.14.0",
+    "accelerate>=0.24.0",
+    "wandb>=0.16.0",
+    "bitsandbytes>=0.41.0",
+    "evaluate>=0.4.0",
+    "scikit-learn>=1.3.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "huggingface_hub>=0.19.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "tqdm>=4.65.0",
+    "typing-extensions>=4.5.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "PyYAML>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "hypothesis>=6.88.0",
+    "black>=23.9.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-mock>=3.11.0",
+    "pytest-xdist>=3.3.0",
+    "isort>=5.12.0",
+    "bandit>=1.7.5",
+    "safety>=2.3.0",
+    "tox>=4.11.0",
+    "coverage[toml]>=7.3.0",
+    "docstr-coverage>=2.3.0",
+]
+colab = [
+    "google-colab",
+    "google-auth>=2.17.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/rlhf-phi3-pipeline"
+Repository = "https://github.com/your-username/rlhf-phi3-pipeline"
+Documentation = "https://github.com/your-username/rlhf-phi3-pipeline#readme"
+"Bug Tracker" = "https://github.com/your-username/rlhf-phi3-pipeline/issues"
+
+[project.scripts]
+rlhf-phi3 = "rlhf_phi3.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rlhf_phi3*"]
+
+[tool.setuptools.package-data]
+rlhf_phi3 = ["configs/*.yaml"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg-info",
+    ".venv",
+    ".tox",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests",
+    "property: Property-based tests", 
+    "integration: Integration tests",
+    "slow: Slow tests that require significant compute",
+]
+
+[tool.coverage.run]
+source = ["rlhf_phi3"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

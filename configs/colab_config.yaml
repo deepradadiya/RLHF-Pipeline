@@ -1,0 +1,86 @@
+# Google Colab Optimized Configuration
+# Optimized for T4 GPU constraints and 12-hour session limits
+
+# Model Configuration (same as default)
+model:
+  name: "microsoft/Phi-3-mini-4k-instruct"
+  max_length: 1024  # Reduced for memory efficiency
+  device: "auto"
+
+# LoRA Configuration (more aggressive for memory savings)
+lora:
+  r: 8  # Reduced rank for memory efficiency
+  alpha: 16
+  dropout: 0.1
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Training Configuration (optimized for Colab)
+training:
+  # SFT Stage
+  sft:
+    epochs: 2  # Reduced for time constraints
+    learning_rate: 3e-4
+    batch_size: 2  # Smaller batch size for T4
+    gradient_accumulation_steps: 8  # Compensate with accumulation
+    warmup_steps: 50
+    max_steps: 500  # Reduced for session limits
+    
+  # Reward Model Stage  
+  reward:
+    epochs: 1
+    learning_rate: 1e-4
+    batch_size: 1  # Very small for memory
+    gradient_accumulation_steps: 16
+    warmup_steps: 25
+    max_steps: 250
+    
+  # PPO Stage
+  ppo:
+    learning_rate: 5e-6
+    batch_size: 1
+    mini_batch_size: 1
+    gradient_accumulation_steps: 32  # High accumulation
+    ppo_epochs: 2  # Reduced epochs
+    max_steps: 200  # Reduced steps
+
+# Optimization Settings (memory focused)
+optimization:
+  optimizer_type: "adamw_torch"
+  scheduler_type: "cosine"
+  weight_decay: 0.01
+  max_grad_norm: 0.5  # Lower for stability
+  fp16: true  # Essential for memory
+  gradient_checkpointing: true  # Essential for memory
+  dataloader_num_workers: 0  # Avoid multiprocessing issues
+
+# Paths (Colab specific)
+paths:
+  base_output_dir: "/content/drive/MyDrive/rlhf-phi3"
+  cache_dir: "/content/cache"
+  logs_dir: "/content/logs"
+
+# Datasets (smaller for Colab)
+datasets:
+  sft:
+    name: "HuggingFaceH4/ultrachat_200k"
+    split: "train_sft"
+    max_samples: 2000  # Much smaller for Colab
+    
+  preference:
+    name: "HuggingFaceH4/ultrafeedback_binarized"
+    split: "train_prefs"
+    max_samples: 1000  # Much smaller for Colab
+
+# Checkpointing (frequent for session management)
+checkpointing:
+  save_steps: 50  # More frequent saves
+  save_total_limit: 2  # Keep fewer checkpoints
+  resume_from_checkpoint: null
+
+# Logging (less frequent to reduce overhead)
+logging:
+  level: "INFO"
+  log_steps: 25
+  eval_steps: 100
