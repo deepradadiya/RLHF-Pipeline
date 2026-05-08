@@ -2181,3 +2181,284 @@ class DatasetManager:
             prefetch_factor=2 if num_workers > 0 else 2,
             persistent_workers=num_workers > 0
         )
+    
+    def load_dataset_with_fallback(self, 
+                                  dataset_name: str,
+                                  dataset_type: str = "sft",
+                                  streaming: bool = False,
+                                  max_retries: int = 3) -> Union[Dataset, IterableDataset, None]:
+        """
+        Load dataset with automatic fallback to alternative sources.
+        
+        Args:
+            dataset_name: Primary dataset name to load
+            dataset_type: Type of dataset ("sft" or "preference")
+            streaming: Whether to use streaming mode
+            max_retries: Maximum retry attempts for each dataset
+            
+        Returns:
+            Loaded dataset or None if all attempts failed
+            
+        Requirement 9.2: Dataset loading fallbacks with alternative sources and clear guidance
+        """
+        # Define alternative datasets
+        alternatives = {
+            'sft': [
+                "microsoft/orca-math-word-problems-200k",
+                "Open-Orca/OpenOrca", 
+                "teknium/OpenHermes-2.5",
+                "argilla/distilabel-intel-orca-dpo-pairs"
+            ],
+            'preference': [
+                "Anthropic/hh-rlhf",
+                "argilla/ultrafeedback-binarized-preferences-cleaned", 
+                "Intel/orca_dpo_pairs",
+                "jondurbin/truthy-dpo-v0.1"
+            ]
+        }
+        
+        # Try primary dataset first
+        datasets_to_try = [dataset_name] + alternatives.get(dataset_type, [])
+        
+        for attempt_dataset in datasets_to_try:
+            for retry in range(max_retries):
+                try:
+                    logger.info(f"Attempting to load {dataset_type} dataset: {attempt_dataset} (attempt {retry + 1}/{max_retries})")
+                    
+                    if dataset_type == "sft":
+                        dataset = self.load_sft_dataset(attempt_dataset, streaming=streaming)
+                    else:
+                        dataset = self.load_preference_dataset(attempt_dataset, streaming=streaming)
+                    
+                    if dataset is not None:
+                        if attempt_dataset != dataset_name:
+                            logger.warning(f"Using fallback dataset: {attempt_dataset} (original: {dataset_name})")
+                        else:
+                            logger.info(f"Successfully loaded primary dataset: {dataset_name}")
+                        
+                        return dataset
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to load {attempt_dataset} (attempt {retry + 1}): {str(e)}")
+                    
+                    # Wait before retry
+                    if retry < max_retries - 1:
+                        import time
+                        wait_time = 2 ** retry  # Exponential backoff
+                        logger.info(f"Waiting {wait_time} seconds before retry...")
+                        time.sleep(wait_time)
+        
+        # All attempts failed
+        logger.error(f"Failed to load any {dataset_type} dataset after trying all alternatives")
+        self._log_dataset_recovery_instructions(dataset_name, dataset_type)
+        return None
+    
+    def _log_dataset_recovery_instructions(self, dataset_name: str, dataset_type: str):
+        """Log detailed recovery instructions for dataset loading failures."""
+        instructions = [
+            "",
+            "=" * 60,
+            f"DATASET LOADING FAILED: {dataset_name} ({dataset_type})",
+            "=" * 60,
+            "",
+            "RECOVERY INSTRUCTIONS:",
+            "",
+            "1. CHECK INTERNET CONNECTION:",
+            "   - Verify you have a stable internet connection",
+            "   - Try accessing https://huggingface.co/ in your browser",
+            "",
+            "2. VERIFY DATASET EXISTS:",
+            f"   - Check if {dataset_name} exists on HuggingFace Hub",
+            "   - Verify the dataset name spelling and format",
+            "   - Ensure the dataset is publicly accessible",
+            "",
+            "3. TRY ALTERNATIVE DATASETS:",
+            "   SFT alternatives:",
+            "   - microsoft/orca-math-word-problems-200k",
+            "   - Open-Orca/OpenOrca",
+            "   - teknium/OpenHermes-2.5",
+            "",
+            "   Preference alternatives:",
+            "   - Anthropic/hh-rlhf", 
+            "   - argilla/ultrafeedback-binarized-preferences-cleaned",
+            "   - Intel/orca_dpo_pairs",
+            "",
+            "4. CLEAR DATASET CACHE:",
+            "   - Delete cached datasets that might be corrupted",
+            f"   - Cache location: {self.cache_dir}",
+            "",
+            "5. USE STREAMING MODE:",
+            "   - Try loading with streaming=True for large datasets",
+            "   - This reduces memory usage and can bypass some loading issues",
+            "",
+            "6. CHECK HUGGINGFACE TOKEN:",
+            "   - Some datasets require authentication",
+            "   - Set HF_TOKEN environment variable if needed",
+            "",
+            "7. MANUAL DOWNLOAD:",
+            "   - Download dataset manually and load from local path",
+            "   - Use datasets.load_from_disk() for local datasets",
+            "",
+            "=" * 60
+        ]
+        
+        for instruction in instructions:
+            logger.error(instruction)
+    
+    def validate_dataset_health(self, dataset: Union[Dataset, IterableDataset]) -> Dict[str, Any]:
+        """
+        Validate dataset health and provide diagnostic information.
+        
+        Args:
+            dataset: Dataset to validate
+            
+        Returns:
+            Dictionary with validation results and recommendations
+        """
+        health_report = {
+            "dataset_type": type(dataset).__name__,
+            "is_streaming": isinstance(dataset, IterableDataset),
+            "sample_count": "unknown" if isinstance(dataset, IterableDataset) else len(dataset),
+            "column_names": getattr(dataset, 'column_names', []),
+            "features": str(getattr(dataset, 'features', {})),
+            "issues": [],
+            "recommendations": [],
+            "sample_validation": {}
+        }
+        
+        try:
+            # Test loading a few samples
+            if isinstance(dataset, IterableDataset):
+                # For streaming datasets, take first few items
+                samples = []
+                for i, sample in enumerate(dataset):
+                    samples.append(sample)
+                    if i >= 2:  # Take 3 samples
+                        break
+            else:
+                # For regular datasets, take first few samples
+                sample_count = min(3, len(dataset))
+                samples = [dataset[i] for i in range(sample_count)]
+            
+            if not samples:
+                health_report["issues"].append("Dataset appears to be empty")
+                health_report["recommendations"].append("Check dataset loading parameters")
+                return health_report
+            
+            # Validate sample structure
+            first_sample = samples[0]
+            required_fields = {
+                'sft': ['messages', 'conversations', 'instruction', 'input', 'question'],
+                'preference': ['prompt', 'chosen', 'rejected', 'question', 'response_a', 'response_b']
+            }
+            
+            # Detect dataset type based on fields
+            sample_fields = set(first_sample.keys()) if isinstance(first_sample, dict) else set()
+            
+            dataset_format = "unknown"
+            for format_type, fields in required_fields.items():
+                if any(field in sample_fields for field in fields):
+                    dataset_format = format_type
+                    break
+            
+            health_report["detected_format"] = dataset_format
+            health_report["sample_fields"] = list(sample_fields)
+            
+            # Validate content
+            content_issues = []
+            for i, sample in enumerate(samples):
+                try:
+                    if dataset_format == "sft":
+                        messages = self._extract_messages_from_sft_example(sample)
+                        if not messages:
+                            content_issues.append(f"Sample {i}: No valid messages found")
+                        elif self._contains_harmful_content(str(sample)):
+                            content_issues.append(f"Sample {i}: Contains potentially harmful content")
+                    
+                    elif dataset_format == "preference":
+                        prompt, chosen, rejected = self._extract_preference_data(sample)
+                        if not all([prompt, chosen, rejected]):
+                            content_issues.append(f"Sample {i}: Missing required preference fields")
+                        elif chosen == rejected:
+                            content_issues.append(f"Sample {i}: Chosen and rejected responses are identical")
+                
+                except Exception as e:
+                    content_issues.append(f"Sample {i}: Validation error - {str(e)}")
+            
+            health_report["sample_validation"]["issues"] = content_issues
+            health_report["sample_validation"]["samples_checked"] = len(samples)
+            
+            # Generate recommendations
+            if content_issues:
+                health_report["recommendations"].append("Review dataset quality and preprocessing")
+            
+            if dataset_format == "unknown":
+                health_report["recommendations"].append("Dataset format not recognized - may need custom preprocessing")
+            
+            if not isinstance(dataset, IterableDataset) and len(dataset) < 100:
+                health_report["recommendations"].append("Dataset is very small - consider using a larger dataset")
+            
+        except Exception as e:
+            health_report["issues"].append(f"Health validation failed: {str(e)}")
+            health_report["recommendations"].append("Check dataset accessibility and format")
+        
+        return health_report
+    
+    def clear_corrupted_cache(self, dataset_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Clear potentially corrupted dataset cache files.
+        
+        Args:
+            dataset_name: Specific dataset to clear, or None for all
+            
+        Returns:
+            Dictionary with cleanup results
+        """
+        cleanup_results = {
+            "files_removed": 0,
+            "space_freed_mb": 0,
+            "errors": []
+        }
+        
+        try:
+            if dataset_name:
+                # Clear specific dataset cache
+                cache_pattern = f"*{dataset_name.replace('/', '_')}*"
+                cache_files = list(self.cache_dir.glob(cache_pattern))
+            else:
+                # Clear all cache files
+                cache_files = list(self.cache_dir.rglob("*"))
+                cache_files = [f for f in cache_files if f.is_file()]
+            
+            total_size = 0
+            for cache_file in cache_files:
+                try:
+                    file_size = cache_file.stat().st_size
+                    cache_file.unlink()
+                    total_size += file_size
+                    cleanup_results["files_removed"] += 1
+                except Exception as e:
+                    cleanup_results["errors"].append(f"Failed to remove {cache_file}: {str(e)}")
+            
+            cleanup_results["space_freed_mb"] = total_size / (1024 * 1024)
+            
+            # Clear in-memory cache as well
+            if dataset_name:
+                keys_to_remove = [k for k in self._dataset_cache.keys() if dataset_name in k]
+                for key in keys_to_remove:
+                    del self._dataset_cache[key]
+            else:
+                self._dataset_cache.clear()
+            
+            logger.info(f"Cache cleanup complete:")
+            logger.info(f"  Files removed: {cleanup_results['files_removed']}")
+            logger.info(f"  Space freed: {cleanup_results['space_freed_mb']:.1f} MB")
+            
+            if cleanup_results["errors"]:
+                logger.warning(f"  Errors encountered: {len(cleanup_results['errors'])}")
+        
+        except Exception as e:
+            cleanup_results["errors"].append(f"Cache cleanup failed: {str(e)}")
+            logger.error(f"Failed to clear cache: {str(e)}")
+        
+        return cleanup_results
