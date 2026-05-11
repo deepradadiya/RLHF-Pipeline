@@ -1,0 +1,34 @@
+{
+  "project": "RLHF Phi-3 Pipeline",
+  "seed": 999,
+  "timestamp": "2026-05-11T10:15:16.404090",
+  "stages": [
+    "sft",
+    "reward",
+    "ppo"
+  ],
+  "reproducibility_hash": "d1a63ea3f6de58f8ee5735d9fe784fda7d67bd52927e5beb14ef8b4c25ffecde",
+  "environment_summary": {
+    "seed": 999,
+    "deterministic_mode": true,
+    "reproducibility_hash": "d1a63ea3f6de58f8ee5735d9fe784fda7d67bd52927e5beb14ef8b4c25ffecde",
+    "key_versions": {
+      "python": {
+        "major": 3,
+        "minor": 14,
+        "micro": 2,
+        "releaselevel": "final",
+        "serial": 0
+      },
+      "torch": "not_installed",
+      "transformers": "not_installed",
+      "cuda": null
+    },
+    "timestamp": "2026-05-11T10:15:16.404090"
+  },
+  "files": [
+    "sft_reproducibility_record.json",
+    "reward_reproducibility_record.json",
+    "ppo_reproducibility_record.json"
+  ]
+}

@@ -14,9 +14,10 @@ Requirements satisfied:
 """
 
 import json
+import hashlib
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 import logging
 from copy import deepcopy
 
@@ -679,6 +680,127 @@ class Config:
         
         merged_dict = deep_merge(config_dict, updates)
         return self._dict_to_config(merged_dict)
+    
+    def create_checkpoint_snapshot(self, checkpoint_id: str, 
+                                 training_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Create a complete configuration snapshot for checkpoint storage.
+        
+        This method creates a comprehensive snapshot of the configuration state
+        that can be saved with checkpoints for full reproducibility.
+        
+        Args:
+            checkpoint_id: Unique identifier for the checkpoint
+            training_metadata: Optional training metadata to include
+            
+        Returns:
+            Complete configuration snapshot dictionary
+            
+        Requirement 15.1: Configuration snapshots with checkpoints
+        """
+        from datetime import datetime
+        import hashlib
+        
+        # Create base snapshot
+        snapshot = {
+            "checkpoint_id": checkpoint_id,
+            "timestamp": datetime.now().isoformat(),
+            "config": asdict(self),
+            "config_version": "1.0",
+            "snapshot_type": "checkpoint"
+        }
+        
+        # Add training metadata if provided
+        if training_metadata:
+            snapshot["training_metadata"] = training_metadata
+        
+        # Create configuration hash for integrity verification
+        config_str = json.dumps(snapshot["config"], sort_keys=True)
+        config_hash = hashlib.sha256(config_str.encode()).hexdigest()
+        snapshot["config_hash"] = config_hash
+        
+        # Add reproducibility information
+        try:
+            from ..utils.reproducibility import ReproducibilityManager
+            repro_manager = ReproducibilityManager()
+            snapshot["reproducibility"] = repro_manager.get_reproducibility_summary()
+        except ImportError:
+            logger.warning("Reproducibility manager not available for snapshot")
+            snapshot["reproducibility"] = None
+        
+        logger.info(f"Created configuration snapshot for checkpoint: {checkpoint_id}")
+        return snapshot
+    
+    def save_checkpoint_snapshot(self, checkpoint_path: Union[str, Path], 
+                               checkpoint_id: str,
+                               training_metadata: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Save configuration snapshot to checkpoint directory.
+        
+        Args:
+            checkpoint_path: Path to checkpoint directory
+            checkpoint_id: Unique identifier for the checkpoint
+            training_metadata: Optional training metadata to include
+            
+        Requirement 15.1: Configuration snapshots with checkpoints
+        """
+        checkpoint_path = Path(checkpoint_path)
+        checkpoint_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create snapshot
+        snapshot = self.create_checkpoint_snapshot(checkpoint_id, training_metadata)
+        
+        # Save snapshot
+        snapshot_file = checkpoint_path / "config_snapshot.json"
+        with open(snapshot_file, "w") as f:
+            json.dump(snapshot, f, indent=2, default=str)
+        
+        logger.info(f"Configuration snapshot saved to {snapshot_file}")
+    
+    @classmethod
+    def load_checkpoint_snapshot(cls, checkpoint_path: Union[str, Path]) -> Tuple['Config', Dict[str, Any]]:
+        """
+        Load configuration from checkpoint snapshot.
+        
+        Args:
+            checkpoint_path: Path to checkpoint directory
+            
+        Returns:
+            Tuple of (Config instance, snapshot metadata)
+            
+        Requirement 15.1: Configuration snapshots with checkpoints
+        """
+        checkpoint_path = Path(checkpoint_path)
+        snapshot_file = checkpoint_path / "config_snapshot.json"
+        
+        if not snapshot_file.exists():
+            raise FileNotFoundError(f"Configuration snapshot not found: {snapshot_file}")
+        
+        with open(snapshot_file, "r") as f:
+            snapshot = json.load(f)
+        
+        # Verify snapshot integrity
+        config_dict = snapshot["config"]
+        expected_hash = snapshot.get("config_hash")
+        
+        if expected_hash:
+            config_str = json.dumps(config_dict, sort_keys=True)
+            actual_hash = hashlib.sha256(config_str.encode()).hexdigest()
+            
+            if actual_hash != expected_hash:
+                logger.warning("Configuration snapshot integrity check failed")
+        
+        # Create config instance
+        config = cls._dict_to_config(config_dict)
+        
+        logger.info(f"Configuration loaded from checkpoint snapshot: {snapshot_file}")
+        return config, snapshotcls._dict_to_config(config_dict)
+        
+        # Return config and metadata
+        metadata = {k: v for k, v in snapshot.items() if k != "config"}
+        
+        logger.info(f"Configuration loaded from snapshot: {snapshot.get('checkpoint_id', 'unknown')}")
+        return config, metadata
 
 
 # Convenience functions for common configuration scenarios

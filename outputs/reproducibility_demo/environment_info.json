@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-05-11T10:15:16.030196",
+  "seed": 123,
+  "deterministic_mode": true,
+  "system": {
+    "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "system": "Darwin",
+    "release": "25.4.0",
+    "version": "Darwin Kernel Version 25.4.0: Thu Mar 19 19:31:09 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8132",
+    "machine": "arm64",
+    "processor": "arm",
+    "architecture": [
+      "64bit",
+      "Mach-O"
+    ],
+    "hostname": "192.168.1.5"
+  },
+  "python": {
+    "version": "3.14.2 (main, Dec  5 2025, 16:49:16) [Clang 17.0.0 (clang-1700.4.4.1)]",
+    "version_info": {
+      "major": 3,
+      "minor": 14,
+      "micro": 2,
+      "releaselevel": "final",
+      "serial": 0
+    },
+    "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "path": [
+      "/Users/deepradadiya/projects/RLHF-Pipeline/examples",
+      "/opt/homebrew/Cellar/python@3.14/3.14.2/Frameworks/Python.framework/Versions/3.14/lib/python314.zip",
+      "/opt/homebrew/Cellar/python@3.14/3.14.2/Frameworks/Python.framework/Versions/3.14/lib/python3.14",
+      "/opt/homebrew/Cellar/python@3.14/3.14.2/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload",
+      "/opt/homebrew/lib/python3.14/site-packages"
+    ],
+    "prefix": "/opt/homebrew/opt/python@3.14/Frameworks/Python.framework/Versions/3.14",
+    "base_prefix": "/opt/homebrew/opt/python@3.14/Frameworks/Python.framework/Versions/3.14"
+  },
+  "libraries": {
+    "torch": "not_installed",
+    "transformers": "not_installed",
+    "datasets": "not_installed",
+    "peft": "not_installed",
+    "trl": "not_installed",
+    "accelerate": "not_installed",
+    "numpy": "2.4.4",
+    "pandas": "3.0.2",
+    "scikit-learn": "not_installed",
+    "matplotlib": "not_installed",
+    "seaborn": "not_installed",
+    "wandb": "not_installed",
+    "evaluate": "not_installed",
+    "bitsandbytes": "not_installed",
+    "huggingface_hub": "not_installed",
+    "google-colab": "not_installed",
+    "google-auth": "not_installed",
+    "pytest": "not_installed",
+    "hypothesis": "not_installed"
+  },
+  "cuda": {
+    "available": false,
+    "version": null,
+    "device_count": 0,
+    "devices": []
+  },
+  "environment_variables": {
+    "CUDA_VISIBLE_DEVICES": "not_set",
+    "CUDA_LAUNCH_BLOCKING": "1",
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+    "PYTHONHASHSEED": "42",
+    "WANDB_PROJECT": "not_set",
+    "WANDB_ENTITY": "not_set",
+    "HF_HOME": "not_set",
+    "TRANSFORMERS_CACHE": "not_set",
+    "HF_DATASETS_CACHE": "not_set",
+    "TOKENIZERS_PARALLELISM": "not_set"
+  },
+  "git": {
+    "available": true,
+    "commit_hash": "0a03aa21fe24dacb10874b2fe323a3e7e22f44f4",
+    "branch": "main",
+    "remote_url": "git@github.com:deepradadiya/RLHF-Pipeline.git",
+    "is_dirty": true
+  },
+  "hardware": {
+    "cpu_count": 10,
+    "memory": {}
+  }
+}

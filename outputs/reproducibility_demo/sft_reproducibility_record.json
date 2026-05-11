@@ -1,0 +1,31 @@
+{
+  "stage": "sft",
+  "seed": 999,
+  "fingerprint": "044c12b18e88ea771e1f6fb2c5397f6a97843c39667925cd684391e85c421241",
+  "timestamp": "2026-05-11T10:15:16.276927",
+  "reproducibility_hash": "d1a63ea3f6de58f8ee5735d9fe784fda7d67bd52927e5beb14ef8b4c25ffecde",
+  "configuration": {
+    "learning_rate": 0.0002,
+    "batch_size": 4,
+    "epochs": 3,
+    "max_steps": 1000
+  },
+  "environment_summary": {
+    "seed": 999,
+    "deterministic_mode": true,
+    "reproducibility_hash": "d1a63ea3f6de58f8ee5735d9fe784fda7d67bd52927e5beb14ef8b4c25ffecde",
+    "key_versions": {
+      "python": {
+        "major": 3,
+        "minor": 14,
+        "micro": 2,
+        "releaselevel": "final",
+        "serial": 0
+      },
+      "torch": "not_installed",
+      "transformers": "not_installed",
+      "cuda": null
+    },
+    "timestamp": "2026-05-11T10:15:16.276927"
+  }
+}
