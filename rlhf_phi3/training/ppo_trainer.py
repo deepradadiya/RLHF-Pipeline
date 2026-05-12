@@ -1,19 +1,19 @@
 """
-PPO (Proximal Policy Optimization) Trainer for RLHF Phi-3 Pipeline
+RLOO (Reinforcement Learning with Online Optimization) Trainer for RLHF Phi-3 Pipeline
 
-This module implements the third and final stage of the RLHF pipeline: PPO training.
+This module implements the third and final stage of the RLHF pipeline: RLOO training.
 It handles RLHF training using TRL library integration with policy optimization
-guided by the reward model.
+guided by the reward model. RLOO is a more efficient alternative to RLOO.
 
 Key Features:
-- PPO training with TRL library integration
+- RLOO training with TRL library integration
 - Policy optimization with reward model guidance
 - PEFT/LoRA integration for memory efficiency
 - Progress tracking and experiment logging
 - Checkpoint persistence and recovery
 
 Requirements satisfied:
-- 1.3: PPO stage implementation as final stage of three-stage pipeline
+- 1.3: RLOO stage implementation as final stage of three-stage pipeline
 """
 
 import os
@@ -37,7 +37,7 @@ from transformers import (
     TrainerControl,
 )
 from peft import PeftModel
-from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl import RLOOTrainer, RLOOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 from datasets import Dataset
 
@@ -51,8 +51,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PPOTrainingResult:
-    """Result of PPO training execution."""
+class RLOOTrainingResult:
+    """Result of RLOO training execution."""
     success: bool
     checkpoint_path: Optional[str] = None
     metrics: Optional[Dict[str, float]] = None
@@ -64,8 +64,8 @@ class PPOTrainingResult:
     total_steps: Optional[int] = None
 
 
-class PPOTrainingCallback:
-    """Custom callback for PPO training monitoring and logging."""
+class RLOOTrainingCallback:
+    """Custom callback for RLOO training monitoring and logging."""
     
     def __init__(
         self, 
@@ -75,7 +75,7 @@ class PPOTrainingCallback:
         config: Config
     ):
         """
-        Initialize PPO training callback.
+        Initialize RLOO training callback.
         
         Args:
             experiment_tracker: Experiment tracking instance
@@ -96,11 +96,11 @@ class PPOTrainingCallback:
         self.step_count = 0
         
         # Early stopping configuration
-        self.early_stopping_patience = getattr(config.training.ppo, 'early_stopping_patience', 10)
-        self.min_reward_improvement = getattr(config.training.ppo, 'min_reward_improvement', 0.01)
+        self.early_stopping_patience = getattr(config.training.rloo, 'early_stopping_patience', 10)
+        self.min_reward_improvement = getattr(config.training.rloo, 'min_reward_improvement', 0.01)
         self.patience_counter = 0
     
-    def on_step_end(self, trainer: PPOTrainer, step: int, logs: Dict[str, float]):
+    def on_step_end(self, trainer: RLOOTrainer, step: int, logs: Dict[str, float]):
         """Handle step end events."""
         self.step_count = step
         
@@ -131,39 +131,39 @@ class PPOTrainingCallback:
         
         # Log progress
         if step % 10 == 0:
-            logger.info(f"PPO Step {step}: Reward={logs.get('env/reward_mean', 0):.4f}, "
+            logger.info(f"RLOO Step {step}: Reward={logs.get('env/reward_mean', 0):.4f}, "
                        f"KL={logs.get('objective/kl', 0):.4f}")
     
     def should_stop_training(self) -> bool:
         """Check if training should stop early."""
         return self.patience_counter >= self.early_stopping_patience
     
-    def save_checkpoint(self, trainer: PPOTrainer, step: int):
+    def save_checkpoint(self, trainer: RLOOTrainer, step: int):
         """Save checkpoint during training."""
         try:
-            checkpoint_name = f"ppo_step_{step}"
+            checkpoint_name = f"rloo_step_{step}"
             self.checkpoint_manager.save_checkpoint(
                 model=trainer.model,
-                optimizer=None,  # PPO handles optimizer internally
+                optimizer=None,  # RLOO handles optimizer internally
                 epoch=0,
-                stage="ppo",
+                stage="rloo",
                 checkpoint_name=checkpoint_name,
                 metadata={
                     'step': step,
                     'best_reward': self.best_reward,
-                    'model_type': 'ppo_model'
+                    'model_type': 'rloo_model'
                 }
             )
-            logger.info(f"PPO checkpoint saved: {checkpoint_name}")
+            logger.info(f"RLOO checkpoint saved: {checkpoint_name}")
         except Exception as e:
-            logger.error(f"Failed to save PPO checkpoint: {str(e)}")
+            logger.error(f"Failed to save RLOO checkpoint: {str(e)}")
 
 
-class PPOTrainerWrapper:
+class RLOOTrainerWrapper:
     """
-    PPO Trainer for RLHF Pipeline.
+    RLOO Trainer for RLHF Pipeline.
     
-    Implements the final stage of RLHF using Proximal Policy Optimization
+    Implements the final stage of RLHF using Reinforcement Learning with Online Optimization
     to fine-tune the policy model using rewards from the reward model.
     """
     
@@ -176,7 +176,7 @@ class PPOTrainerWrapper:
         experiment_tracker: ExperimentTracker
     ):
         """
-        Initialize PPO trainer.
+        Initialize RLOO trainer.
         
         Args:
             config: Pipeline configuration
@@ -195,7 +195,7 @@ class PPOTrainerWrapper:
         self.policy_model = None
         self.reward_model = None
         self.tokenizer = None
-        self.ppo_trainer = None
+        self.rloo_trainer = None
         self.dataset = None
         
         # Setup logging
@@ -212,9 +212,9 @@ class PPOTrainerWrapper:
         Returns:
             Policy model with value head
             
-        Requirement 1.3: Load SFT model as base for PPO training
+        Requirement 1.3: Load SFT model as base for RLOO training
         """
-        self.logger.info(f"Loading SFT model for PPO from {sft_checkpoint_path}")
+        self.logger.info(f"Loading SFT model for RLOO from {sft_checkpoint_path}")
         
         try:
             # Load SFT model
@@ -281,12 +281,12 @@ class PPOTrainerWrapper:
     
     def prepare_dataset(self) -> Dataset:
         """
-        Prepare dataset for PPO training.
+        Prepare dataset for RLOO training.
         
         Returns:
             Prepared dataset with prompts
         """
-        self.logger.info("Loading dataset for PPO training")
+        self.logger.info("Loading dataset for RLOO training")
         
         try:
             # Load SFT dataset for prompts
@@ -308,52 +308,52 @@ class PPOTrainerWrapper:
                     if len(text) > 100:
                         prompts.append(text[:100])
             
-            # Limit dataset size for PPO training
-            max_prompts = self.config.training.ppo.max_prompts
+            # Limit dataset size for RLOO training
+            max_prompts = self.config.training.rloo.max_prompts
             if len(prompts) > max_prompts:
                 prompts = prompts[:max_prompts]
             
             # Create dataset
             dataset = Dataset.from_dict({'query': prompts})
             
-            self.logger.info(f"PPO dataset prepared with {len(dataset)} prompts")
+            self.logger.info(f"RLOO dataset prepared with {len(dataset)} prompts")
             return dataset
             
         except Exception as e:
-            self.logger.error(f"Failed to prepare PPO dataset: {str(e)}")
+            self.logger.error(f"Failed to prepare RLOO dataset: {str(e)}")
             raise
     
-    def create_ppo_config(self) -> PPOConfig:
+    def create_rloo_config(self) -> RLOOConfig:
         """
-        Create PPO configuration.
+        Create RLOO configuration.
         
         Returns:
-            PPO configuration
+            RLOO configuration
         """
-        ppo_config = self.config.training.ppo
+        rloo_config = self.config.training.rloo
         
-        return PPOConfig(
+        return RLOOConfig(
             # Model configuration
             model_name=self.config.model.name,
             
             # Training parameters
-            steps=ppo_config.steps,
-            learning_rate=ppo_config.learning_rate,
-            batch_size=ppo_config.batch_size,
-            mini_batch_size=ppo_config.mini_batch_size,
-            gradient_accumulation_steps=ppo_config.gradient_accumulation_steps,
+            steps=rloo_config.steps,
+            learning_rate=rloo_config.learning_rate,
+            batch_size=rloo_config.batch_size,
+            mini_batch_size=rloo_config.mini_batch_size,
+            gradient_accumulation_steps=rloo_config.gradient_accumulation_steps,
             
-            # PPO specific parameters
-            ppo_epochs=ppo_config.ppo_epochs,
-            gamma=ppo_config.gamma,
-            lam=ppo_config.lam,
-            cliprange=ppo_config.cliprange,
-            cliprange_value=ppo_config.cliprange_value,
-            vf_coef=ppo_config.vf_coef,
+            # RLOO specific parameters
+            rloo_epochs=rloo_config.rloo_epochs,
+            gamma=rloo_config.gamma,
+            lam=rloo_config.lam,
+            cliprange=rloo_config.cliprange,
+            cliprange_value=rloo_config.cliprange_value,
+            vf_coef=rloo_config.vf_coef,
             
             # KL divergence control
-            init_kl_coef=ppo_config.init_kl_coef,
-            target_kl=ppo_config.target_kl,
+            init_kl_coef=rloo_config.init_kl_coef,
+            target_kl=rloo_config.target_kl,
             adap_kl_ctrl=True,
             
             # Generation parameters
@@ -366,7 +366,7 @@ class PPOTrainerWrapper:
             log_with="wandb" if self.config.tracking.use_wandb else None,
             project_kwargs={
                 "project_name": self.config.tracking.wandb_project,
-                "run_name": f"ppo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                "run_name": f"rloo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             } if self.config.tracking.use_wandb else None,
         )
     
@@ -415,9 +415,9 @@ class PPOTrainerWrapper:
         self, 
         sft_checkpoint_path: str, 
         reward_checkpoint_path: str
-    ) -> PPOTrainingResult:
+    ) -> RLOOTrainingResult:
         """
-        Execute PPO training.
+        Execute RLOO training.
         
         Args:
             sft_checkpoint_path: Path to SFT checkpoint
@@ -426,31 +426,31 @@ class PPOTrainerWrapper:
         Returns:
             Training result with metrics and checkpoint path
             
-        Requirement 1.3: PPO training stage implementation
+        Requirement 1.3: RLOO training stage implementation
         """
         start_time = time.time()
         
         try:
-            self.logger.info("Starting PPO training")
+            self.logger.info("Starting RLOO training")
             
             # Prepare models and dataset
             self.policy_model = self.prepare_policy_model(sft_checkpoint_path)
             self.reward_model = self.prepare_reward_model(reward_checkpoint_path)
             self.dataset = self.prepare_dataset()
             
-            # Create PPO configuration
-            ppo_config = self.create_ppo_config()
+            # Create RLOO configuration
+            rloo_config = self.create_rloo_config()
             
-            # Create PPO trainer
-            self.ppo_trainer = PPOTrainer(
-                config=ppo_config,
+            # Create RLOO trainer
+            self.rloo_trainer = RLOOTrainer(
+                config=rloo_config,
                 model=self.policy_model,
                 tokenizer=self.tokenizer,
                 dataset=self.dataset
             )
             
             # Create callback
-            callback = PPOTrainingCallback(
+            callback = RLOOTrainingCallback(
                 self.experiment_tracker,
                 self.model_manager,
                 self.checkpoint_manager,
@@ -468,15 +468,15 @@ class PPOTrainerWrapper:
             }
             
             # Training loop
-            self.logger.info("Starting PPO training loop")
+            self.logger.info("Starting RLOO training loop")
             
-            for step, batch in enumerate(self.ppo_trainer.dataloader):
-                if step >= ppo_config.steps:
+            for step, batch in enumerate(self.rloo_trainer.dataloader):
+                if step >= rloo_config.steps:
                     break
                 
                 # Generate responses
                 query_tensors = batch["input_ids"]
-                response_tensors = self.ppo_trainer.generate(
+                response_tensors = self.rloo_trainer.generate(
                     query_tensors,
                     return_prompt=False,
                     **generation_kwargs
@@ -492,15 +492,15 @@ class PPOTrainerWrapper:
                 rewards = self.compute_reward(texts)
                 rewards = [torch.tensor(r) for r in rewards]
                 
-                # PPO step
-                stats = self.ppo_trainer.step(query_tensors, response_tensors, rewards)
+                # RLOO step
+                stats = self.rloo_trainer.step(query_tensors, response_tensors, rewards)
                 
                 # Log statistics
-                callback.on_step_end(self.ppo_trainer, step, stats)
+                callback.on_step_end(self.rloo_trainer, step, stats)
                 
                 # Save checkpoint periodically
-                if step % self.config.training.ppo.save_steps == 0:
-                    callback.save_checkpoint(self.ppo_trainer, step)
+                if step % self.config.training.rloo.save_steps == 0:
+                    callback.save_checkpoint(self.rloo_trainer, step)
                 
                 # Check early stopping
                 if callback.should_stop_training():
@@ -515,7 +515,7 @@ class PPOTrainerWrapper:
             
             # Save final checkpoint
             final_checkpoint_path = self._save_final_checkpoint(
-                self.ppo_trainer.model, callback.best_reward, step
+                self.rloo_trainer.model, callback.best_reward, step
             )
             
             # Calculate training duration and memory usage
@@ -523,7 +523,7 @@ class PPOTrainerWrapper:
             memory_peak = max(callback.memory_history) if callback.memory_history else 0.0
             
             # Create result
-            result = PPOTrainingResult(
+            result = RLOOTrainingResult(
                 success=True,
                 checkpoint_path=final_checkpoint_path,
                 metrics={
@@ -538,18 +538,18 @@ class PPOTrainerWrapper:
                 total_steps=step
             )
             
-            self.logger.info(f"PPO training completed successfully in {duration:.2f} seconds")
+            self.logger.info(f"RLOO training completed successfully in {duration:.2f} seconds")
             self.logger.info(f"Final reward: {result.final_reward:.4f}")
             self.logger.info(f"Checkpoint saved: {final_checkpoint_path}")
             
             return result
             
         except Exception as e:
-            error_msg = f"PPO training failed: {str(e)}"
+            error_msg = f"RLOO training failed: {str(e)}"
             self.logger.error(error_msg)
             self.logger.error(traceback.format_exc())
             
-            return PPOTrainingResult(
+            return RLOOTrainingResult(
                 success=False,
                 error_message=error_msg,
                 duration_seconds=time.time() - start_time
@@ -568,10 +568,10 @@ class PPOTrainerWrapper:
         final_step: int
     ) -> str:
         """
-        Save final PPO model checkpoint.
+        Save final RLOO model checkpoint.
         
         Args:
-            model: Trained PPO model
+            model: Trained RLOO model
             final_reward: Final reward score
             final_step: Final training step
             
@@ -579,19 +579,19 @@ class PPOTrainerWrapper:
             Path to saved checkpoint
         """
         try:
-            checkpoint_name = f"ppo_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            checkpoint_name = f"rloo_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
             # Save through checkpoint manager
             checkpoint_path = self.checkpoint_manager.save_checkpoint(
                 model=model,
                 optimizer=None,
                 epoch=0,  # Final checkpoint
-                stage="ppo",
+                stage="rloo",
                 checkpoint_name=checkpoint_name,
                 metadata={
                     'final_reward': final_reward,
                     'final_step': final_step,
-                    'model_type': 'ppo_model',
+                    'model_type': 'rloo_model',
                     'training_completed': True
                 }
             )
@@ -599,22 +599,22 @@ class PPOTrainerWrapper:
             return checkpoint_path
             
         except Exception as e:
-            self.logger.error(f"Failed to save final PPO checkpoint: {str(e)}")
+            self.logger.error(f"Failed to save final RLOO checkpoint: {str(e)}")
             raise
     
     def evaluate_model(self, checkpoint_path: str, eval_prompts: List[str]) -> Dict[str, float]:
         """
-        Evaluate trained PPO model.
+        Evaluate trained RLOO model.
         
         Args:
-            checkpoint_path: Path to PPO model checkpoint
+            checkpoint_path: Path to RLOO model checkpoint
             eval_prompts: List of evaluation prompts
             
         Returns:
             Evaluation metrics
         """
         try:
-            self.logger.info(f"Evaluating PPO model from {checkpoint_path}")
+            self.logger.info(f"Evaluating RLOO model from {checkpoint_path}")
             
             # Load model
             model, _, _ = self.checkpoint_manager.load_checkpoint(
@@ -677,26 +677,26 @@ class PPOTrainerWrapper:
                     'max_reward': np.max(rewards)
                 })
             
-            self.logger.info("PPO model evaluation completed")
+            self.logger.info("RLOO model evaluation completed")
             for key, value in metrics.items():
                 self.logger.info(f"{key}: {value:.4f}")
             
             return metrics
             
         except Exception as e:
-            self.logger.error(f"PPO model evaluation failed: {str(e)}")
+            self.logger.error(f"RLOO model evaluation failed: {str(e)}")
             raise
 
 
-def create_ppo_trainer(
+def create_rloo_trainer(
     config: Config,
     model_manager: ModelManager,
     dataset_manager: DatasetManager,
     checkpoint_manager: CheckpointManager,
     experiment_tracker: ExperimentTracker
-) -> PPOTrainerWrapper:
+) -> RLOOTrainerWrapper:
     """
-    Factory function to create PPO trainer.
+    Factory function to create RLOO trainer.
     
     Args:
         config: Pipeline configuration
@@ -706,9 +706,9 @@ def create_ppo_trainer(
         experiment_tracker: Experiment tracker instance
         
     Returns:
-        Configured PPO trainer
+        Configured RLOO trainer
     """
-    return PPOTrainerWrapper(
+    return RLOOTrainerWrapper(
         config=config,
         model_manager=model_manager,
         dataset_manager=dataset_manager,

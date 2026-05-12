@@ -13,7 +13,7 @@ from pathlib import Path
 from dataclasses import asdict
 
 from rlhf_phi3.config.config_manager import (
-    Config, ModelConfig, LoRAConfig, StageTrainingConfig, PPOTrainingConfig,
+    Config, ModelConfig, LoRAConfig, StageTrainingConfig, RLOOTrainingConfig,
     TrainingConfig, OptimizationConfig, PathsConfig, WandBConfig, 
     DatasetConfig, DatasetsConfig, EvaluationConfig, CheckpointingConfig,
     LoggingConfig, load_default_config, load_colab_config
@@ -136,20 +136,20 @@ class TestStageTrainingConfig:
         assert any("Batch size should not exceed" in error for error in errors)
 
 
-class TestPPOTrainingConfig:
-    """Test PPOTrainingConfig validation and functionality."""
+class TestRLOOTrainingConfig:
+    """Test RLOOTrainingConfig validation and functionality."""
     
-    def test_default_ppo_config(self):
-        """Test default PPO training configuration is valid."""
-        config = PPOTrainingConfig()
+    def test_default_rloo_config(self):
+        """Test default RLOO training configuration is valid."""
+        config = RLOOTrainingConfig()
         assert config.learning_rate == 1e-5
         assert config.batch_size == 1
         assert config.validate() == []
     
-    def test_ppo_config_validation(self):
-        """Test PPO training configuration validation."""
+    def test_rloo_config_validation(self):
+        """Test RLOO training configuration validation."""
         # Test mini batch size larger than batch size
-        config = PPOTrainingConfig(batch_size=2, mini_batch_size=4)
+        config = RLOOTrainingConfig(batch_size=2, mini_batch_size=4)
         errors = config.validate()
         assert any("mini batch size cannot exceed batch size" in error for error in errors)
 
@@ -215,19 +215,19 @@ class TestConfig:
         # Check that dataset config matches preference dataset
         assert reward_config["dataset"]["name"] == config.datasets.preference.name
     
-    def test_get_stage_config_ppo(self):
-        """Test getting PPO stage configuration."""
+    def test_get_stage_config_rloo(self):
+        """Test getting RLOO stage configuration."""
         config = Config()
-        ppo_config = config.get_stage_config("ppo")
+        rloo_config = config.get_stage_config("rloo")
         
-        # Check that training config matches PPO stage
-        assert ppo_config["training"]["learning_rate"] == config.training.ppo.learning_rate
-        assert ppo_config["training"]["ppo_epochs"] == config.training.ppo.ppo_epochs
+        # Check that training config matches RLOO stage
+        assert rloo_config["training"]["learning_rate"] == config.training.rloo.learning_rate
+        assert rloo_config["training"]["rloo_epochs"] == config.training.rloo.rloo_epochs
         
-        # Check that both datasets are included for PPO
-        assert "datasets" in ppo_config
-        assert "sft" in ppo_config["datasets"]
-        assert "preference" in ppo_config["datasets"]
+        # Check that both datasets are included for RLOO
+        assert "datasets" in rloo_config
+        assert "sft" in rloo_config["datasets"]
+        assert "preference" in rloo_config["datasets"]
     
     def test_get_stage_config_invalid_stage(self):
         """Test getting configuration for invalid stage."""
@@ -288,7 +288,7 @@ class TestConfig:
             temp_path = Path(f.name)
         
         try:
-            with pytest.raises(ValueError, match="Unsupported format"):
+            with pytest.raises(ValueError, match="Unsurloorted format"):
                 config.save_config(temp_path, format="txt")
         finally:
             temp_path.unlink(missing_ok=True)
@@ -338,14 +338,14 @@ class TestConfig:
         with pytest.raises(FileNotFoundError):
             Config.load_config("/nonexistent/path/config.yaml")
     
-    def test_config_load_unsupported_format(self):
-        """Test loading configuration from unsupported file format."""
+    def test_config_load_unsurloorted_format(self):
+        """Test loading configuration from unsurloorted file format."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             temp_path = Path(f.name)
             f.write("some content")
         
         try:
-            with pytest.raises(ValueError, match="Unsupported file format"):
+            with pytest.raises(ValueError, match="Unsurloorted file format"):
                 Config.load_config(temp_path)
         finally:
             temp_path.unlink(missing_ok=True)

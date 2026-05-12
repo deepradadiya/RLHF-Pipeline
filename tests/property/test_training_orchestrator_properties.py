@@ -68,7 +68,7 @@ class TestTrainingOrchestratorProperties:
     @given(
         error_type=st.sampled_from([RuntimeError, ValueError, MemoryError, KeyboardInterrupt]),
         error_message=st.text(min_size=1, max_size=100),
-        stage=st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.PPO]),
+        stage=st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.RLOO]),
         duration=st.floats(min_value=0.1, max_value=3600.0)
     )
     @settings(max_examples=50, deadline=None)
@@ -108,7 +108,7 @@ class TestTrainingOrchestratorProperties:
         print(f"✓ Property 1 verified: Failure state preserved for {stage.value} with {error_type.__name__}")
     
     @given(
-        stage=st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.PPO]),
+        stage=st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.RLOO]),
         has_checkpoint=st.booleans(),
         checkpoint_exists=st.booleans(),
         has_metrics=st.booleans()
@@ -288,7 +288,7 @@ class TestTrainingOrchestratorProperties:
     
     @given(
         stage_sequence=st.lists(
-            st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.PPO]),
+            st.sampled_from([TrainingStage.SFT, TrainingStage.REWARD, TrainingStage.RLOO]),
             min_size=1,
             max_size=3,
             unique=True

@@ -3,7 +3,7 @@ Training Orchestrator for RLHF Phi-3 Pipeline
 
 This module implements the central orchestrator that coordinates the three-stage
 RLHF training pipeline: Supervised Fine-Tuning (SFT) → Reward Model Training → 
-Proximal Policy Optimization (PPO).
+Reinforcement Learning with Online Optimization (RLOO).
 
 Key Features:
 - Three-stage pipeline coordination with automatic progression
@@ -13,9 +13,9 @@ Key Features:
 - Training resumption and checkpoint integration
 
 Requirements satisfied:
-- 1.1: Three sequential training stages (SFT → Reward → PPO)
+- 1.1: Three sequential training stages (SFT → Reward → RLOO)
 - 1.2: Automatic progression between stages
-- 1.3: Automatic progression to PPO stage
+- 1.3: Automatic progression to RLOO stage
 - 1.4: Failure state preservation and error diagnostics
 - 1.5: Stage validation before proceeding
 - 5.5: Memory monitoring and reporting
@@ -38,7 +38,7 @@ import torch
 import numpy as np
 from transformers import AutoTokenizer, TrainingArguments, Trainer
 from peft import PeftModel
-from trl import SFTTrainer, RewardTrainer, PPOTrainer, PPOConfig
+from trl import SFTTrainer, RewardTrainer, RLOOTrainer, RLOOConfig
 
 from ..config.config_manager import Config
 from ..models.model_manager import ModelManager
@@ -53,7 +53,7 @@ class TrainingStage(Enum):
     """Enumeration of training stages."""
     SFT = "sft"
     REWARD = "reward"
-    PPO = "ppo"
+    RLOO = "rloo"
 
 
 @dataclass
@@ -94,9 +94,9 @@ class TrainingOrchestrator:
     components to provide a unified training experience.
     
     Requirements satisfied:
-    - 1.1: Three sequential training stages (SFT → Reward → PPO)
+    - 1.1: Three sequential training stages (SFT → Reward → RLOO)
     - 1.2: Automatic progression between stages
-    - 1.3: Automatic progression to PPO stage
+    - 1.3: Automatic progression to RLOO stage
     - 1.4: Failure state preservation and error diagnostics
     - 1.5: Stage validation before proceeding
     - 5.5: Memory monitoring and reporting
@@ -168,14 +168,14 @@ class TrainingOrchestrator:
             reward_checkpoint = self.run_reward_stage(sft_checkpoint)
             
             if not reward_checkpoint:
-                raise RuntimeError("Reward stage failed - cannot proceed to PPO training")
+                raise RuntimeError("Reward stage failed - cannot proceed to RLOO training")
             
-            # Stage 3: Proximal Policy Optimization
-            logger.info("=== Starting Stage 3: Proximal Policy Optimization ===")
-            final_checkpoint = self.run_ppo_stage(sft_checkpoint, reward_checkpoint)
+            # Stage 3: Reinforcement Learning with Online Optimization
+            logger.info("=== Starting Stage 3: Reinforcement Learning with Online Optimization ===")
+            final_checkpoint = self.run_rloo_stage(sft_checkpoint, reward_checkpoint)
             
             if not final_checkpoint:
-                raise RuntimeError("PPO stage failed - pipeline incomplete")
+                raise RuntimeError("RLOO stage failed - pipeline incomplete")
             
             # Pipeline completed successfully
             total_duration = (datetime.now(timezone.utc) - self.pipeline_state.pipeline_start_time).total_seconds()
@@ -404,22 +404,22 @@ class TrainingOrchestrator:
         finally:
             self.experiment_tracker.finish_run()
     
-    def run_ppo_stage(self, sft_checkpoint: str, reward_checkpoint: str) -> Optional[str]:
+    def run_rloo_stage(self, sft_checkpoint: str, reward_checkpoint: str) -> Optional[str]:
         """
-        Execute the Proximal Policy Optimization stage.
+        Execute the Reinforcement Learning with Online Optimization stage.
         
         Args:
             sft_checkpoint: Path to the SFT checkpoint
             reward_checkpoint: Path to the reward model checkpoint
             
         Returns:
-            Path to final PPO checkpoint if successful, None otherwise
+            Path to final RLOO checkpoint if successful, None otherwise
             
-        Requirement 1.3: Automatic progression to PPO stage
+        Requirement 1.3: Automatic progression to RLOO stage
         Requirement 1.5: Stage validation before proceeding
         """
-        stage = TrainingStage.PPO
-        logger.info("Starting PPO (Proximal Policy Optimization) stage")
+        stage = TrainingStage.RLOO
+        logger.info("Starting RLOO (Reinforcement Learning with Online Optimization) stage")
         
         start_time = time.time()
         
@@ -430,7 +430,7 @@ class TrainingOrchestrator:
             # Start experiment tracking
             self.experiment_tracker.start_run(
                 stage=stage.value,
-                run_name=f"ppo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                run_name=f"rloo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
             
             # Load SFT model as policy model
@@ -455,43 +455,43 @@ class TrainingOrchestrator:
                 base_model = self.model_manager.load_base_model()
                 reward_model = PeftModel.from_pretrained(base_model, reward_checkpoint)
             
-            # Prepare models for PPO training
+            # Prepare models for RLOO training
             policy_model = self.model_manager.prepare_for_training(sft_model)
             self.current_model = policy_model
             
-            # Load dataset for PPO (typically prompts from SFT dataset)
-            logger.info("Loading dataset for PPO")
+            # Load dataset for RLOO (typically prompts from SFT dataset)
+            logger.info("Loading dataset for RLOO")
             sft_dataset = self.dataset_manager.load_sft_dataset(streaming=False)
             
-            # Extract prompts for PPO training
-            ppo_dataset = self._prepare_ppo_dataset(sft_dataset)
+            # Extract prompts for RLOO training
+            rloo_dataset = self._prepare_rloo_dataset(sft_dataset)
             
             # Validate dataset
-            if not self._validate_ppo_dataset(ppo_dataset):
-                raise ValueError("PPO dataset validation failed")
+            if not self._validate_rloo_dataset(rloo_dataset):
+                raise ValueError("RLOO dataset validation failed")
             
-            # Setup PPO configuration
-            ppo_config = self._create_ppo_config()
+            # Setup RLOO configuration
+            rloo_config = self._create_rloo_config()
             
-            # Create PPO trainer
-            trainer = PPOTrainer(
-                config=ppo_config,
+            # Create RLOO trainer
+            trainer = RLOOTrainer(
+                config=rloo_config,
                 model=policy_model,
                 ref_model=None,  # Will use the same model as reference
                 reward_model=reward_model,
                 tokenizer=self.current_tokenizer,
-                dataset=ppo_dataset,
+                dataset=rloo_dataset,
             )
             
-            # Execute PPO training with monitoring
-            logger.info("Starting PPO training")
+            # Execute RLOO training with monitoring
+            logger.info("Starting RLOO training")
             
-            # PPO training loop with custom monitoring
-            for epoch in range(self.config.training.ppo.ppo_epochs):
-                logger.info(f"PPO Epoch {epoch + 1}/{self.config.training.ppo.ppo_epochs}")
+            # RLOO training loop with custom monitoring
+            for epoch in range(self.config.training.rloo.rloo_epochs):
+                logger.info(f"RLOO Epoch {epoch + 1}/{self.config.training.rloo.rloo_epochs}")
                 
                 for batch_idx, batch in enumerate(trainer.dataloader):
-                    if batch_idx >= self.config.training.ppo.max_steps:
+                    if batch_idx >= self.config.training.rloo.max_steps:
                         break
                     
                     # Generate responses
@@ -505,7 +505,7 @@ class TrainingOrchestrator:
                     # Get rewards
                     rewards = trainer.compute_rewards(query_tensors, response_tensors)
                     
-                    # PPO step
+                    # RLOO step
                     stats = trainer.step(query_tensors, response_tensors, rewards)
                     
                     # Log metrics
@@ -523,14 +523,14 @@ class TrainingOrchestrator:
             # Save final checkpoint
             checkpoint_path = self._save_stage_checkpoint(
                 trainer.model, 
-                None,  # PPO trainer doesn't expose optimizer directly
+                None,  # RLOO trainer doesn't expose optimizer directly
                 stage, 
-                {"final_epoch": self.config.training.ppo.ppo_epochs}
+                {"final_epoch": self.config.training.rloo.rloo_epochs}
             )
             
             # Validate training completion
             if not self._validate_stage_completion(stage, {"checkpoint_path": checkpoint_path}):
-                raise RuntimeError("PPO stage validation failed")
+                raise RuntimeError("RLOO stage validation failed")
             
             # Record stage result
             duration = time.time() - start_time
@@ -549,13 +549,13 @@ class TrainingOrchestrator:
             self.pipeline_state.completed_stages.append(stage)
             self.pipeline_state.last_checkpoint_path = checkpoint_path
             
-            logger.info(f"PPO stage completed successfully in {duration:.2f} seconds")
+            logger.info(f"RLOO stage completed successfully in {duration:.2f} seconds")
             logger.info(f"Final checkpoint saved: {checkpoint_path}")
             
             return checkpoint_path
             
         except Exception as e:
-            logger.error(f"PPO stage failed: {str(e)}")
+            logger.error(f"RLOO stage failed: {str(e)}")
             self._handle_stage_failure(stage, e, time.time() - start_time)
             return None
         finally:
@@ -566,7 +566,7 @@ class TrainingOrchestrator:
         Resume training from a specific stage and checkpoint.
         
         Args:
-            stage: Stage to resume from ('sft', 'reward', or 'ppo')
+            stage: Stage to resume from ('sft', 'reward', or 'rloo')
             checkpoint_path: Path to the checkpoint to resume from
             
         Returns:
@@ -601,18 +601,18 @@ class TrainingOrchestrator:
                 
                 reward_checkpoint = self.run_reward_stage(sft_checkpoint)
                 if reward_checkpoint:
-                    return self.run_ppo_stage(sft_checkpoint, reward_checkpoint)
+                    return self.run_rloo_stage(sft_checkpoint, reward_checkpoint)
                 else:
                     raise RuntimeError("Reward stage failed during resume")
-            elif stage_enum == TrainingStage.PPO:
+            elif stage_enum == TrainingStage.RLOO:
                 # Need both SFT and reward checkpoints
                 sft_checkpoint = self._find_previous_checkpoint(TrainingStage.SFT)
                 reward_checkpoint = self._find_previous_checkpoint(TrainingStage.REWARD)
                 
                 if not sft_checkpoint or not reward_checkpoint:
-                    raise RuntimeError("Cannot find required checkpoints for PPO stage resume")
+                    raise RuntimeError("Cannot find required checkpoints for RLOO stage resume")
                 
-                return self.run_ppo_stage(sft_checkpoint, reward_checkpoint)
+                return self.run_rloo_stage(sft_checkpoint, reward_checkpoint)
             
         except Exception as e:
             logger.error(f"Failed to resume from stage {stage}: {str(e)}")
@@ -624,7 +624,7 @@ class TrainingOrchestrator:
         Validate successful completion of a training stage.
         
         Args:
-            stage: Stage to validate ('sft', 'reward', or 'ppo')
+            stage: Stage to validate ('sft', 'reward', or 'rloo')
             
         Returns:
             True if stage completed successfully, False otherwise
@@ -727,25 +727,25 @@ class TrainingOrchestrator:
             logger.error(f"Preference dataset validation failed: {str(e)}")
             return False
     
-    def _validate_ppo_dataset(self, dataset) -> bool:
-        """Validate PPO dataset format and content."""
+    def _validate_rloo_dataset(self, dataset) -> bool:
+        """Validate RLOO dataset format and content."""
         try:
             if len(dataset) == 0:
-                logger.error("PPO dataset is empty")
+                logger.error("RLOO dataset is empty")
                 return False
             
             # Check required fields
             required_fields = ['input_ids', 'attention_mask']
             for field in required_fields:
                 if field not in dataset.column_names:
-                    logger.error(f"Missing required field in PPO dataset: {field}")
+                    logger.error(f"Missing required field in RLOO dataset: {field}")
                     return False
             
-            logger.info(f"PPO dataset validation passed: {len(dataset)} samples")
+            logger.info(f"RLOO dataset validation passed: {len(dataset)} samples")
             return True
             
         except Exception as e:
-            logger.error(f"PPO dataset validation failed: {str(e)}")
+            logger.error(f"RLOO dataset validation failed: {str(e)}")
             return False
     
     def _create_sft_training_arguments(self) -> TrainingArguments:
@@ -810,15 +810,15 @@ class TrainingOrchestrator:
             remove_unused_columns=False,
         )
     
-    def _create_ppo_config(self) -> PPOConfig:
-        """Create PPO configuration for PPO stage."""
-        return PPOConfig(
+    def _create_rloo_config(self) -> RLOOConfig:
+        """Create RLOO configuration for RLOO stage."""
+        return RLOOConfig(
             model_name=self.config.model.name,
-            learning_rate=self.config.training.ppo.learning_rate,
-            batch_size=self.config.training.ppo.batch_size,
-            mini_batch_size=self.config.training.ppo.mini_batch_size,
-            gradient_accumulation_steps=self.config.training.ppo.gradient_accumulation_steps,
-            ppo_epochs=self.config.training.ppo.ppo_epochs,
+            learning_rate=self.config.training.rloo.learning_rate,
+            batch_size=self.config.training.rloo.batch_size,
+            mini_batch_size=self.config.training.rloo.mini_batch_size,
+            gradient_accumulation_steps=self.config.training.rloo.gradient_accumulation_steps,
+            rloo_epochs=self.config.training.rloo.rloo_epochs,
             max_grad_norm=self.config.optimization.max_grad_norm,
             optimize_cuda_cache=True,
             early_stopping=True,
@@ -826,8 +826,8 @@ class TrainingOrchestrator:
             seed=42,
         )
     
-    def _prepare_ppo_dataset(self, sft_dataset):
-        """Prepare dataset for PPO training by extracting prompts."""
+    def _prepare_rloo_dataset(self, sft_dataset):
+        """Prepare dataset for RLOO training by extracting prompts."""
         try:
             # Extract prompts from SFT dataset
             prompts = []
@@ -866,12 +866,12 @@ class TrainingOrchestrator:
                     'text': prompt
                 })
             
-            # Convert to dataset format expected by PPO trainer
+            # Convert to dataset format expected by RLOO trainer
             from datasets import Dataset
             return Dataset.from_list(tokenized_prompts)
             
         except Exception as e:
-            logger.error(f"Failed to prepare PPO dataset: {str(e)}")
+            logger.error(f"Failed to prepare RLOO dataset: {str(e)}")
             raise
     
     def _create_training_callback(self, stage: TrainingStage):

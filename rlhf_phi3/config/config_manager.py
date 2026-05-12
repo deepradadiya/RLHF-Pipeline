@@ -131,38 +131,38 @@ class StageTrainingConfig:
 
 
 @dataclass
-class PPOTrainingConfig:
-    """PPO-specific training configuration."""
+class RLOOTrainingConfig:
+    """RLOO-specific training configuration."""
     learning_rate: float = 1e-5
     batch_size: int = 1
     mini_batch_size: int = 1
     gradient_accumulation_steps: int = 16
-    ppo_epochs: int = 4
+    rloo_epochs: int = 4
     max_steps: int = 1000
     
     def validate(self) -> List[str]:
-        """Validate PPO training configuration parameters."""
+        """Validate RLOO training configuration parameters."""
         errors = []
         
         if not (1e-6 <= self.learning_rate <= 1e-2):
-            errors.append("PPO learning rate must be between 1e-6 and 1e-2")
+            errors.append("RLOO learning rate must be between 1e-6 and 1e-2")
             
         if self.batch_size <= 0:
-            errors.append("PPO batch size must be positive")
+            errors.append("RLOO batch size must be positive")
             
         if self.mini_batch_size <= 0:
-            errors.append("PPO mini batch size must be positive")
+            errors.append("RLOO mini batch size must be positive")
         if self.mini_batch_size > self.batch_size:
-            errors.append("PPO mini batch size cannot exceed batch size")
+            errors.append("RLOO mini batch size cannot exceed batch size")
             
         if self.gradient_accumulation_steps <= 0:
-            errors.append("PPO gradient accumulation steps must be positive")
+            errors.append("RLOO gradient accumulation steps must be positive")
             
-        if self.ppo_epochs <= 0:
-            errors.append("PPO epochs must be positive")
+        if self.rloo_epochs <= 0:
+            errors.append("RLOO epochs must be positive")
             
         if self.max_steps <= 0:
-            errors.append("PPO max steps must be positive")
+            errors.append("RLOO max steps must be positive")
             
         return errors
 
@@ -175,14 +175,14 @@ class TrainingConfig:
         epochs=1, learning_rate=1e-4, batch_size=2, gradient_accumulation_steps=8,
         warmup_steps=50, max_steps=500
     ))
-    ppo: PPOTrainingConfig = field(default_factory=PPOTrainingConfig)
+    rloo: RLOOTrainingConfig = field(default_factory=RLOOTrainingConfig)
     
     def validate(self) -> List[str]:
         """Validate training configuration for all stages."""
         errors = []
         errors.extend([f"SFT: {e}" for e in self.sft.validate()])
         errors.extend([f"Reward: {e}" for e in self.reward.validate()])
-        errors.extend([f"PPO: {e}" for e in self.ppo.validate()])
+        errors.extend([f"RLOO: {e}" for e in self.rloo.validate()])
         return errors
 
 
@@ -484,15 +484,15 @@ class Config:
         Get configuration subset for a specific training stage.
         
         Args:
-            stage: Training stage ('sft', 'reward', or 'ppo')
+            stage: Training stage ('sft', 'reward', or 'rloo')
             
         Returns:
             Dict containing stage-specific configuration
             
         Requirement 8.3: Stage-specific configuration subsets
         """
-        if stage not in ["sft", "reward", "ppo"]:
-            raise ValueError(f"Invalid stage '{stage}'. Must be one of: sft, reward, ppo")
+        if stage not in ["sft", "reward", "rloo"]:
+            raise ValueError(f"Invalid stage '{stage}'. Must be one of: sft, reward, rloo")
         
         # Base configuration shared across all stages
         base_config = {
@@ -505,8 +505,8 @@ class Config:
         }
         
         # Add stage-specific training configuration
-        if stage == "ppo":
-            base_config["training"] = asdict(self.training.ppo)
+        if stage == "rloo":
+            base_config["training"] = asdict(self.training.rloo)
         else:
             stage_training = getattr(self.training, stage)
             base_config["training"] = asdict(stage_training)
@@ -516,8 +516,8 @@ class Config:
             base_config["dataset"] = asdict(self.datasets.sft)
         elif stage == "reward":
             base_config["dataset"] = asdict(self.datasets.preference)
-        else:  # ppo
-            # PPO uses both datasets
+        else:  # rloo
+            # RLOO uses both datasets
             base_config["datasets"] = {
                 "sft": asdict(self.datasets.sft),
                 "preference": asdict(self.datasets.preference)

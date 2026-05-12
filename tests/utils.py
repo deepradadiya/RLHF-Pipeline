@@ -17,6 +17,33 @@ import pytest
 
 # Test environment utilities
 
+def setup_test_environment(temp_dir: Path) -> Dict[str, Any]:
+    """Set up a complete test environment with all necessary directories and files."""
+    # Create directory structure
+    dirs = {
+        'output': temp_dir / 'output',
+        'cache': temp_dir / 'cache', 
+        'logs': temp_dir / 'logs',
+        'checkpoints': temp_dir / 'checkpoints',
+        'models': temp_dir / 'models',
+        'data': temp_dir / 'data'
+    }
+    
+    for dir_path in dirs.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
+    
+    # Create test config
+    config = create_minimal_valid_config()
+    config['paths']['base_output_dir'] = str(dirs['output'])
+    config['paths']['cache_dir'] = str(dirs['cache'])
+    config['paths']['logs_dir'] = str(dirs['logs'])
+    
+    return {
+        'dirs': dirs,
+        'config': config,
+        'temp_dir': temp_dir
+    }
+
 @contextmanager
 def temporary_directory():
     """Context manager for creating and cleaning up temporary directories."""
@@ -128,12 +155,12 @@ def create_minimal_valid_config() -> Dict[str, Any]:
                 "warmup_steps": 5,
                 "max_steps": 25
             },
-            "ppo": {
+            "rloo": {
                 "learning_rate": 1e-5,
                 "batch_size": 1,
                 "mini_batch_size": 1,
                 "gradient_accumulation_steps": 1,
-                "ppo_epochs": 1,
+                "rloo_epochs": 1,
                 "max_steps": 10
             }
         },

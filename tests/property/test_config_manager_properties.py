@@ -24,7 +24,7 @@ from hypothesis import given, strategies as st, assume, settings
 from hypothesis.strategies import composite
 
 from rlhf_phi3.config.config_manager import (
-    Config, ModelConfig, LoRAConfig, StageTrainingConfig, PPOTrainingConfig,
+    Config, ModelConfig, LoRAConfig, StageTrainingConfig, RLOOTrainingConfig,
     TrainingConfig, OptimizationConfig, PathsConfig, WandBConfig, 
     DatasetConfig, DatasetsConfig, EvaluationConfig, CheckpointingConfig,
     LoggingConfig
@@ -67,17 +67,17 @@ def valid_stage_training_config(draw):
     )
 
 @composite
-def valid_ppo_training_config(draw):
-    """Generate valid PPOTrainingConfig instances."""
+def valid_rloo_training_config(draw):
+    """Generate valid RLOOTrainingConfig instances."""
     batch_size = draw(st.integers(min_value=1, max_value=64))
     mini_batch_size = draw(st.integers(min_value=1, max_value=batch_size))
     
-    return PPOTrainingConfig(
+    return RLOOTrainingConfig(
         learning_rate=draw(st.floats(min_value=1e-6, max_value=1e-2)),
         batch_size=batch_size,
         mini_batch_size=mini_batch_size,
         gradient_accumulation_steps=draw(st.integers(min_value=1, max_value=32)),
-        ppo_epochs=draw(st.integers(min_value=1, max_value=10)),
+        rloo_epochs=draw(st.integers(min_value=1, max_value=10)),
         max_steps=draw(st.integers(min_value=1, max_value=10000))
     )
 
@@ -155,16 +155,16 @@ def valid_config(draw):
     """Generate valid Config instances."""
     sft_config = draw(valid_stage_training_config())
     reward_config = draw(valid_stage_training_config())
-    ppo_config = draw(valid_ppo_training_config())
+    rloo_config = draw(valid_rloo_training_config())
     
     # Ensure effective batch sizes don't exceed 128 for cross-section validation
     sft_effective = sft_config.batch_size * sft_config.gradient_accumulation_steps
     reward_effective = reward_config.batch_size * reward_config.gradient_accumulation_steps
-    ppo_effective = ppo_config.batch_size * ppo_config.gradient_accumulation_steps
+    rloo_effective = rloo_config.batch_size * rloo_config.gradient_accumulation_steps
     
     assume(sft_effective <= 128)
     assume(reward_effective <= 128)
-    assume(ppo_effective <= 128)
+    assume(rloo_effective <= 128)
     
     sft_dataset = draw(valid_dataset_config())
     preference_dataset = draw(valid_dataset_config())
@@ -178,13 +178,13 @@ def valid_config(draw):
     checkpointing_config = draw(valid_checkpointing_config())
     
     # Ensure checkpoint save_steps is reasonable compared to training steps
-    min_max_steps = min(sft_config.max_steps, reward_config.max_steps, ppo_config.max_steps)
+    min_max_steps = min(sft_config.max_steps, reward_config.max_steps, rloo_config.max_steps)
     assume(checkpointing_config.save_steps <= min_max_steps)
     
     return Config(
         model=model_config,
         lora=draw(valid_lora_config()),
-        training=TrainingConfig(sft=sft_config, reward=reward_config, ppo=ppo_config),
+        training=TrainingConfig(sft=sft_config, reward=reward_config, rloo=rloo_config),
         optimization=draw(valid_optimization_config()),
         paths=draw(valid_paths_config()),
         wandb=draw(valid_wandb_config()),
@@ -405,7 +405,7 @@ class TestConfigurationManagerProperties:
         errors = config.get_validation_errors()
         assert len(errors) == 0
     
-    @given(valid_config(), st.sampled_from(["sft", "reward", "ppo"]))
+    @given(valid_config(), st.sampled_from(["sft", "reward", "rloo"]))
     @settings(max_examples=50, deadline=None)
     def test_property_19_stage_configuration_subsetting(self, config: Config, stage: str):
         """
@@ -452,12 +452,12 @@ class TestConfigurationManagerProperties:
             assert stage_config["dataset"]["name"] == config.datasets.preference.name
             assert "datasets" not in stage_config
             
-        elif stage == "ppo":
-            assert stage_config["training"]["learning_rate"] == config.training.ppo.learning_rate
-            assert stage_config["training"]["batch_size"] == config.training.ppo.batch_size
-            assert stage_config["training"]["ppo_epochs"] == config.training.ppo.ppo_epochs
+        elif stage == "rloo":
+            assert stage_config["training"]["learning_rate"] == config.training.rloo.learning_rate
+            assert stage_config["training"]["batch_size"] == config.training.rloo.batch_size
+            assert stage_config["training"]["rloo_epochs"] == config.training.rloo.rloo_epochs
             
-            # PPO should have both datasets
+            # RLOO should have both datasets
             assert "datasets" in stage_config
             assert "sft" in stage_config["datasets"]
             assert "preference" in stage_config["datasets"]
@@ -592,15 +592,15 @@ class TestConfigurationEdgeCases:
             config.get_stage_config("invalid_stage")
     
     @given(st.text().filter(lambda x: x not in ["yaml", "json"]))
-    def test_unsupported_serialization_format_rejection(self, invalid_format: str):
-        """Test that unsupported serialization formats are rejected."""
+    def test_unsurloorted_serialization_format_rejection(self, invalid_format: str):
+        """Test that unsurloorted serialization formats are rejected."""
         config = Config()
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.tmp', delete=False) as f:
             temp_path = Path(f.name)
         
         try:
-            with pytest.raises(ValueError, match="Unsupported format"):
+            with pytest.raises(ValueError, match="Unsurloorted format"):
                 config.save_config(temp_path, format=invalid_format)
         finally:
             temp_path.unlink(missing_ok=True)
@@ -627,7 +627,7 @@ class TestConfigurationEdgeCases:
         config.model.max_length = 8192  # Exceeds typical Phi-3 limit
         
         errors = config.get_validation_errors()
-        assert any("Phi-3 models typically support max_length up to 4096" in error for error in errors)
+        assert any("Phi-3 models typically surloort max_length up to 4096" in error for error in errors)
     
     def test_checkpoint_save_steps_validation(self):
         """Test that checkpoint save_steps is validated against training steps."""
@@ -635,7 +635,7 @@ class TestConfigurationEdgeCases:
         config.checkpointing.save_steps = 10000  # Larger than any max_steps
         config.training.sft.max_steps = 100
         config.training.reward.max_steps = 50
-        config.training.ppo.max_steps = 25
+        config.training.rloo.max_steps = 25
         
         errors = config.get_validation_errors()
         assert any("save_steps should be less than the minimum max_steps" in error for error in errors)
