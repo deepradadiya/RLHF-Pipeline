@@ -195,22 +195,82 @@ This implementation plan converts the RLHF Phi-3 pipeline design into actionable
     - Add progress tracking and checkpoint integration
     - _Requirements: 1.1, 5.1, 6.1_
 
-  - [x] 8.2 Implement Reward Model training stage
-    - Create `rlhf_phi3/training/reward_trainer.py`
-    - Implement preference dataset training for reward modeling
-    - Add reward model evaluation and validation
+  - [x] 8.2 Implement Reward Model training stage (Stage 2 of RLHF)
+    - Create `rlhf_phi3/training/reward_trainer.py` with comprehensive reward model implementation
+    - **What a Reward Model means**: Add top comment explaining that the reward model learns what humans prefer - given two responses to the same prompt, it outputs a score where higher score = humans would prefer this response. It's like training a judge before running a competition.
+    - **Dataset**: Use "Anthropic/hh-rlhf" dataset (the actual dataset Anthropic used for Claude's training) with first 5,000 examples for Colab compatibility
+    - **Start from SFT model**: Initialize from our SFT model checkpoint (not base Phi-3) with clear explanation that reward model should understand instructions first
+    - **Score head architecture**: Add linear "score head" on top - single neuron outputting one number per response, with ASCII art diagram in comments
+    - **Training setup**: Use TRL's RewardTrainer with Bradley-Terry preference loss (include intuitive explanation of what this means)
+    - **Evaluation**: Implement preference accuracy metric (did reward model score chosen > rejected?) targeting >65% accuracy
+    - **Model saving**: Save reward model to Google Drive and HuggingFace Hub as "{username}/phi3-reward-model"
     - _Requirements: 1.2, 7.5_
 
-  - [x] 8.3 Implement PPO (Proximal Policy Optimization) stage
-    - Create `rlhf_phi3/training/ppo_trainer.py`
-    - Implement RLHF training using TRL library integration
-    - Add policy optimization with reward model guidance
+  - [ ] 8.2.1 Create Stage 2 dataset processing (`stage2_reward/dataset.py`)
+    - Load "Anthropic/hh-rlhf" dataset from HuggingFace Hub
+    - Implement `format_preference_pair()` function returning {"prompt": ..., "chosen": ..., "rejected": ...}
+    - Print example pairs showing chosen vs rejected responses for data understanding
+    - Add `analyze_length_difference()` function showing that chosen responses tend to be longer/different
+    - _Requirements: 7.1, 7.5_
+
+  - [ ] 8.2.2 Implement reward model training (`stage2_reward/train_reward.py`)
+    - Load SFT model checkpoint as base (with explanation why not base Phi-3)
+    - Add linear score head architecture with detailed ASCII art diagram in comments
+    - Implement TRL RewardTrainer integration
+    - Use Bradley-Terry preference loss with intuitive explanation
+    - Track preference accuracy as evaluation metric (target >65%)
+    - Save final model to Google Drive and HuggingFace Hub
+    - _Requirements: 1.2, 10.1, 10.2_
+
+  - [ ] 8.2.3 Create reward model testing utilities (`stage2_reward/test_reward.py`)
+    - Implement `score_response()` function taking any prompt+response and returning score 0-10
+    - Create 10 handwritten test examples: good responses vs bad responses
+    - Generate comparison table showing scores side by side for demo purposes
+    - Add functionality suitable for recruiter demonstrations
+    - _Requirements: 12.1, 12.2_
+
+  - [ ] 8.3 Implement comprehensive PPO (Proximal Policy Optimization) stage (Stage 3 of RLHF)
+    - Create `stage3_ppo/train_ppo.py` with complete PPO training implementation
+    - **What PPO means**: Add top comment explaining "We now use the reward model as a feedback signal to further improve the SFT model. The LLM generates responses, the reward model scores them, and PPO updates the LLM to generate higher-scoring responses. This is exactly how ChatGPT was trained. The KL-divergence penalty prevents the model from 'cheating' — drifting too far from the original SFT model just to get high scores."
+    - **Actor-Critic setup**: Load SFT model as the "actor" (the model we're improving) and reward model as the frozen "critic" (the judge)
+    - **PPO configuration**: Use TRL's PPOTrainer with Colab T4 settings: mini_batch_size=1, batch_size=4, gradient_accumulation_steps=4, ppo_epochs=4, kl_penalty="kl" with init_kl_coef=0.1
+    - **Hyperparameter documentation**: Explain each PPO hyperparameter with detailed comments
+    - **Comprehensive tracking**: Track metrics in W&B every step: mean reward, KL divergence, response length
+    - **Checkpoint management**: Save checkpoint every 50 steps to Google Drive
+    - **Dataset**: Use first 2,000 prompts from "Anthropic/hh-rlhf" dataset
+    - **Training duration**: Run for 200 steps total
     - _Requirements: 1.3_
 
-  - [x] 8.4 Write integration tests for training stages
+  - [ ] 8.3.1 Create comprehensive PPO evaluation suite (`stage3_ppo/evaluate.py`)
+    - **MT-Bench style scoring**: Implement 20 questions across 5 categories (coding help, reasoning, writing, math, knowledge)
+    - **Multi-model comparison**: Generate responses from base Phi-3, SFT model, and PPO model
+    - **Reward model scoring**: Score each response using reward model and print comparison table
+    - **Win-rate analysis**: For 50 random prompts, compare SFT vs PPO performance
+    - **Reward hacking detection**: Plot response length vs reward score correlation to detect gaming
+    - **Summary reporting**: Print final summary card with all evaluation metrics
+    - _Requirements: 12.1, 12.2, 12.4_
+
+  - [ ] 8.3.2 Implement model publishing workflow (`publish_to_hub.py`)
+    - **Final model publishing**: Push final PPO model to HuggingFace Hub as "{username}/phi3-rlhf-final"
+    - **Comprehensive model card**: Write model card explaining what the model is, training stages, datasets used, evaluation results
+    - **Usage documentation**: Include 5-line code example for model usage
+    - **Interactive demo**: Create HuggingFace Space with Gradio demo for chatting with RLHF model
+    - _Requirements: 10.1, 10.2, 10.3_
+
+  - [ ] 8.3.3 Update project documentation (`README.md` enhancements)
+    - **Architecture diagram**: Add project architecture diagram in ASCII art
+    - **Stage explanations**: Explain all 3 training stages simply and clearly
+    - **Results table**: Include training results table with comprehensive metrics
+    - **Hub integration**: Add links to HuggingFace Hub model and Space
+    - **Reproduction guide**: Create "How to reproduce" section with step-by-step instructions
+    - _Requirements: 13.1, 13.5_
+
+  - [ ] 8.4 Write integration tests for training stages
     - Test complete SFT pipeline with toy dataset
     - Test reward model training with preference pairs
-    - Test PPO training with reduced steps
+    - Test comprehensive PPO training with reduced steps (50 steps instead of 200)
+    - Test end-to-end evaluation pipeline with all three models
+    - Test model publishing workflow to HuggingFace Hub
     - _Requirements: 11.3_
 
 - [x] 9. Evaluation Engine Implementation
@@ -409,3 +469,24 @@ This implementation plan converts the RLHF Phi-3 pipeline design into actionable
 - The implementation follows a modular architecture enabling independent component development
 - All code should include comprehensive type hints, docstrings, and error handling
 - Focus on Google Colab compatibility and T4 GPU memory constraints throughout implementation
+- **Stage 3 PPO Implementation**: The comprehensive PPO implementation includes detailed explanations, proper hyperparameter documentation, extensive evaluation suite, and complete model publishing workflow
+- **Evaluation Suite**: The MT-Bench style evaluation compares all three models (base Phi-3, SFT, PPO) with reward hacking detection
+- **Model Publishing**: Final models are published to HuggingFace Hub with comprehensive documentation and interactive demos
+- **Documentation Updates**: README includes architecture diagrams, results tables, and complete reproduction guides
+
+## Task Dependency Graph
+
+```json
+{
+  "waves": [
+    { "id": 0, "tasks": ["14.2"] },
+    { "id": 1, "tasks": ["14.3"] },
+    { "id": 2, "tasks": ["8.2.1"] },
+    { "id": 3, "tasks": ["8.2.2"] },
+    { "id": 4, "tasks": ["8.2.3", "8.3"] },
+    { "id": 5, "tasks": ["8.3.1", "16.1"] },
+    { "id": 6, "tasks": ["8.3.2", "16.2"] },
+    { "id": 7, "tasks": ["8.3.3", "16.3"] }
+  ]
+}
+```
